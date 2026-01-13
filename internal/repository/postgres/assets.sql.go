@@ -7,8 +7,6 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createAsset = `-- name: CreateAsset :one
@@ -18,9 +16,9 @@ RETURNING id, symbol, name, asset_type, created_at
 `
 
 type CreateAssetParams struct {
-	Symbol    string      `json:"symbol"`
-	Name      pgtype.Text `json:"name"`
-	AssetType string      `json:"asset_type"`
+	Symbol    string  `json:"symbol"`
+	Name      *string `json:"name"`
+	AssetType string  `json:"asset_type"`
 }
 
 func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error) {
@@ -36,19 +34,24 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 	return i, err
 }
 
-const getAssetBySymbol = `-- name: GetAssetBySymbol :one
-SELECT id, symbol, name, asset_type, created_at
-FROM assets
-WHERE symbol = $1 AND asset_type = $2
+const deleteAsset = `-- name: DeleteAsset :exec
+DELETE FROM assets
+WHERE id = $1
 `
 
-type GetAssetBySymbolParams struct {
-	Symbol    string `json:"symbol"`
-	AssetType string `json:"asset_type"`
+func (q *Queries) DeleteAsset(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteAsset, id)
+	return err
 }
 
-func (q *Queries) GetAssetBySymbol(ctx context.Context, arg GetAssetBySymbolParams) (Asset, error) {
-	row := q.db.QueryRow(ctx, getAssetBySymbol, arg.Symbol, arg.AssetType)
+const getAssetByID = `-- name: GetAssetByID :one
+SELECT id, symbol, name, asset_type, created_at
+FROM assets
+WHERE id = $1
+`
+
+func (q *Queries) GetAssetByID(ctx context.Context, id int64) (Asset, error) {
+	row := q.db.QueryRow(ctx, getAssetByID, id)
 	var i Asset
 	err := row.Scan(
 		&i.ID,
@@ -63,7 +66,7 @@ func (q *Queries) GetAssetBySymbol(ctx context.Context, arg GetAssetBySymbolPara
 const listAssets = `-- name: ListAssets :many
 SELECT id, symbol, name, asset_type, created_at
 FROM assets
-ORDER BY symbol
+ORDER BY id
 `
 
 func (q *Queries) ListAssets(ctx context.Context) ([]Asset, error) {
@@ -90,4 +93,39 @@ func (q *Queries) ListAssets(ctx context.Context) ([]Asset, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAsset = `-- name: UpdateAsset :one
+UPDATE assets
+SET
+  symbol = $2,
+  name = $3,
+  asset_type = $4
+WHERE id = $1
+RETURNING id, symbol, name, asset_type, created_at
+`
+
+type UpdateAssetParams struct {
+	ID        int64   `json:"id"`
+	Symbol    string  `json:"symbol"`
+	Name      *string `json:"name"`
+	AssetType string  `json:"asset_type"`
+}
+
+func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error) {
+	row := q.db.QueryRow(ctx, updateAsset,
+		arg.ID,
+		arg.Symbol,
+		arg.Name,
+		arg.AssetType,
+	)
+	var i Asset
+	err := row.Scan(
+		&i.ID,
+		&i.Symbol,
+		&i.Name,
+		&i.AssetType,
+		&i.CreatedAt,
+	)
+	return i, err
 }

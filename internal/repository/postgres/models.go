@@ -11,7 +11,7 @@ import (
 type Asset struct {
 	ID        int64              `json:"id"`
 	Symbol    string             `json:"symbol"`
-	Name      pgtype.Text        `json:"name"`
+	Name      *string            `json:"name"`
 	AssetType string             `json:"asset_type"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }

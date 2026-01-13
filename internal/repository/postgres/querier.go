@@ -11,12 +11,14 @@ import (
 type Querier interface {
 	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
-	GetAssetBySymbol(ctx context.Context, arg GetAssetBySymbolParams) (Asset, error)
+	DeleteAsset(ctx context.Context, id int64) error
+	GetAssetByID(ctx context.Context, id int64) (Asset, error)
 	GetLatestPrice(ctx context.Context, assetID int64) (PriceSnapshot, error)
 	GetNetQuantityByAsset(ctx context.Context) ([]GetNetQuantityByAssetRow, error)
 	ListAllTransactions(ctx context.Context) ([]Transaction, error)
 	ListAssets(ctx context.Context) ([]Asset, error)
 	ListTransactionsByAsset(ctx context.Context, assetID int64) ([]Transaction, error)
+	UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error)
 	UpsertPriceSnapshot(ctx context.Context, arg UpsertPriceSnapshotParams) (PriceSnapshot, error)
 }
 
