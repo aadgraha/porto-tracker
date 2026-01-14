@@ -11,13 +11,85 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const correctTransaction = `-- name: CorrectTransaction :one
+WITH new_tx AS (
+    INSERT INTO transactions (
+        asset_id,
+        tx_type,
+        quantity,
+        price,
+        fee,
+        occurred_at
+    )
+    VALUES (
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7
+    )
+    RETURNING id
+)
+UPDATE transactions AS t
+SET corrected_by = (SELECT new_tx.id FROM new_tx)
+WHERE t.id = $1
+RETURNING t.id, t.asset_id, t.tx_type, t.quantity, t.price, t.fee, t.occurred_at, t.corrected_by, t.created_at
+`
+
+type CorrectTransactionParams struct {
+	ID         int64              `json:"id"`
+	AssetID    int64              `json:"asset_id"`
+	TxType     string             `json:"tx_type"`
+	Quantity   pgtype.Numeric     `json:"quantity"`
+	Price      pgtype.Numeric     `json:"price"`
+	Fee        pgtype.Numeric     `json:"fee"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+}
+
+func (q *Queries) CorrectTransaction(ctx context.Context, arg CorrectTransactionParams) (Transaction, error) {
+	row := q.db.QueryRow(ctx, correctTransaction,
+		arg.ID,
+		arg.AssetID,
+		arg.TxType,
+		arg.Quantity,
+		arg.Price,
+		arg.Fee,
+		arg.OccurredAt,
+	)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.AssetID,
+		&i.TxType,
+		&i.Quantity,
+		&i.Price,
+		&i.Fee,
+		&i.OccurredAt,
+		&i.CorrectedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createTransaction = `-- name: CreateTransaction :one
 INSERT INTO transactions (
-    asset_id, tx_type, quantity, price, fee, occurred_at
-) VALUES (
-    $1, $2, $3, $4, $5, $6
+    asset_id,
+    tx_type,
+    quantity,
+    price,
+    fee,
+    occurred_at
 )
-RETURNING id, asset_id, tx_type, quantity, price, fee, occurred_at, created_at
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+)
+RETURNING id, asset_id, tx_type, quantity, price, fee, occurred_at, corrected_by, created_at
 `
 
 type CreateTransactionParams struct {
@@ -47,15 +119,76 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.Price,
 		&i.Fee,
 		&i.OccurredAt,
+		&i.CorrectedBy,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
-const listAllTransactions = `-- name: ListAllTransactions :many
-SELECT id, asset_id, tx_type, quantity, price, fee, occurred_at, created_at
+const getTransactionByID = `-- name: GetTransactionByID :one
+SELECT id, asset_id, tx_type, quantity, price, fee, occurred_at, corrected_by, created_at
 FROM transactions
-ORDER BY occurred_at ASC
+WHERE id = $1
+`
+
+func (q *Queries) GetTransactionByID(ctx context.Context, id int64) (Transaction, error) {
+	row := q.db.QueryRow(ctx, getTransactionByID, id)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.AssetID,
+		&i.TxType,
+		&i.Quantity,
+		&i.Price,
+		&i.Fee,
+		&i.OccurredAt,
+		&i.CorrectedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listActiveTransactions = `-- name: ListActiveTransactions :many
+SELECT id, asset_id, tx_type, quantity, price, fee, occurred_at, corrected_by, created_at
+FROM transactions
+WHERE corrected_by IS NULL
+ORDER BY occurred_at DESC
+`
+
+func (q *Queries) ListActiveTransactions(ctx context.Context) ([]Transaction, error) {
+	rows, err := q.db.Query(ctx, listActiveTransactions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Transaction
+	for rows.Next() {
+		var i Transaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.AssetID,
+			&i.TxType,
+			&i.Quantity,
+			&i.Price,
+			&i.Fee,
+			&i.OccurredAt,
+			&i.CorrectedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllTransactions = `-- name: ListAllTransactions :many
+SELECT id, asset_id, tx_type, quantity, price, fee, occurred_at, corrected_by, created_at
+FROM transactions
+ORDER BY occurred_at DESC
 `
 
 func (q *Queries) ListAllTransactions(ctx context.Context) ([]Transaction, error) {
@@ -75,6 +208,7 @@ func (q *Queries) ListAllTransactions(ctx context.Context) ([]Transaction, error
 			&i.Price,
 			&i.Fee,
 			&i.OccurredAt,
+			&i.CorrectedBy,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -88,10 +222,11 @@ func (q *Queries) ListAllTransactions(ctx context.Context) ([]Transaction, error
 }
 
 const listTransactionsByAsset = `-- name: ListTransactionsByAsset :many
-SELECT id, asset_id, tx_type, quantity, price, fee, occurred_at, created_at
+SELECT id, asset_id, tx_type, quantity, price, fee, occurred_at, corrected_by, created_at
 FROM transactions
 WHERE asset_id = $1
-ORDER BY occurred_at ASC
+  AND corrected_by IS NULL
+ORDER BY occurred_at DESC
 `
 
 func (q *Queries) ListTransactionsByAsset(ctx context.Context, assetID int64) ([]Transaction, error) {
@@ -111,6 +246,7 @@ func (q *Queries) ListTransactionsByAsset(ctx context.Context, assetID int64) ([
 			&i.Price,
 			&i.Fee,
 			&i.OccurredAt,
+			&i.CorrectedBy,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

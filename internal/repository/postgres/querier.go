@@ -9,12 +9,15 @@ import (
 )
 
 type Querier interface {
+	CorrectTransaction(ctx context.Context, arg CorrectTransactionParams) (Transaction, error)
 	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
 	CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error)
 	DeleteAsset(ctx context.Context, id int64) error
 	GetAssetByID(ctx context.Context, id int64) (Asset, error)
 	GetLatestPrice(ctx context.Context, assetID int64) (PriceSnapshot, error)
 	GetNetQuantityByAsset(ctx context.Context) ([]GetNetQuantityByAssetRow, error)
+	GetTransactionByID(ctx context.Context, id int64) (Transaction, error)
+	ListActiveTransactions(ctx context.Context) ([]Transaction, error)
 	ListAllTransactions(ctx context.Context) ([]Transaction, error)
 	ListAssets(ctx context.Context) ([]Asset, error)
 	ListTransactionsByAsset(ctx context.Context, assetID int64) ([]Transaction, error)

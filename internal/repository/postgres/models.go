@@ -24,12 +24,13 @@ type PriceSnapshot struct {
 }
 
 type Transaction struct {
-	ID         int64              `json:"id"`
-	AssetID    int64              `json:"asset_id"`
-	TxType     string             `json:"tx_type"`
-	Quantity   pgtype.Numeric     `json:"quantity"`
-	Price      pgtype.Numeric     `json:"price"`
-	Fee        pgtype.Numeric     `json:"fee"`
-	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ID          int64              `json:"id"`
+	AssetID     int64              `json:"asset_id"`
+	TxType      string             `json:"tx_type"`
+	Quantity    pgtype.Numeric     `json:"quantity"`
+	Price       pgtype.Numeric     `json:"price"`
+	Fee         pgtype.Numeric     `json:"fee"`
+	OccurredAt  pgtype.Timestamptz `json:"occurred_at"`
+	CorrectedBy *int64             `json:"corrected_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
